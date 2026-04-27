@@ -1,0 +1,9 @@
+{
+  "spreadsheet_id": "18Gzpi_yeYQXbjqChlhm9EHT7z0Gi-65D0NCX7iC3SJ4",
+  "data_sheet_name": "수기매체업로드",
+  "config_sheet_name": "설정",
+  "rtbhouse": {
+    "app_dashboard_url": "https://panel.rtbhouse.com/dashboard/zjgMiqEIsN3oQNMPG6hc?groupBy=day&rangeName=THIS_YEAR&countConvention=ATTRIBUTED",
+    "web_dashboard_url": "https://panel.rtbhouse.com/dashboard/0nxXCRelH0yCnjinL3tE?groupBy=day&rangeName=THIS_YEAR&countConvention=ATTRIBUTED"
+  }
+}

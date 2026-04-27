@@ -1,0 +1,46 @@
+name: Daily Media Crawl
+
+on:
+  # 매일 오전 8시 KST (= 23:00 UTC 전날)
+  schedule:
+    - cron: "0 23 * * *"
+  # Streamlit 앱 또는 GitHub UI에서 수동 실행 가능
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 3.11 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: 의존성 설치
+        run: pip install -r requirements.txt
+
+      - name: Google Chrome 설치 확인
+        run: |
+          google-chrome --version || (
+            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb &&
+            sudo apt install -y ./google-chrome-stable_current_amd64.deb
+          )
+
+      - name: 크롤링 및 Sheets 업로드 실행
+        env:
+          RTBHOUSE_EMAIL:    ${{ secrets.RTBHOUSE_EMAIL }}
+          RTBHOUSE_PASSWORD: ${{ secrets.RTBHOUSE_PASSWORD }}
+          BUZZVIL_EMAIL:     ${{ secrets.BUZZVIL_EMAIL }}
+          BUZZVIL_PASSWORD:  ${{ secrets.BUZZVIL_PASSWORD }}
+          GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
+        run: python main.py
+
+      - name: 실행 결과 요약 출력
+        if: always()
+        run: echo "작업 완료 (상태: ${{ job.status }})"
