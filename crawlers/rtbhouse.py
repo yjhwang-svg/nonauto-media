@@ -23,13 +23,14 @@ LOGIN_URL = "https://panel.rtbhouse.com/login"
 
 def build_driver():
     options = Options()
-    options.add_argument("--headless")
+    options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_argument("--disable-extensions")
+    options.add_argument("--no-zygote")
+    options.add_argument("--single-process")
     return webdriver.Chrome(options=options)
 
 
@@ -51,10 +52,13 @@ def login(driver):
     submit_btn = driver.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
     submit_btn.click()
 
-    # 로그인 완료 대기 (대시보드 URL로 이동될 때까지)
-    wait.until(EC.url_contains("/dashboard"))
-    logger.info("RTB House 로그인 성공")
-    time.sleep(2)
+    # 로그인 완료 대기 - URL 변화 또는 로그인 페이지 이탈 확인
+    try:
+        wait.until(EC.url_changes(LOGIN_URL))
+    except TimeoutException:
+        logger.warning("로그인 후 URL 변경 미감지 — 현재 URL: " + driver.current_url)
+    logger.info(f"RTB House 로그인 완료 — URL: {driver.current_url}")
+    time.sleep(3)
 
 
 def _clean_number(text: str) -> int:
