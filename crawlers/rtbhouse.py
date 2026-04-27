@@ -28,6 +28,11 @@ def build_driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-webgl")
+    options.add_argument("--disable-3d-apis")
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("--blink-settings=imagesEnabled=false")
+    options.page_load_strategy = "eager"
     return webdriver.Chrome(options=options)
 
 
