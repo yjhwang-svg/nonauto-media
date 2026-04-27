@@ -43,4 +43,4 @@ jobs:
 
       - name: 실행 결과 요약 출력
         if: always()
-        run: echo "작업 완료 (상태: ${{ job.status }})"
+        run: echo "작업 완료"
