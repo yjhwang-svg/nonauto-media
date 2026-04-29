@@ -43,3 +43,11 @@ jobs:
       - name: 실행 결과 요약 출력
         if: always()
         run: echo "작업 완료"
+
+      - name: 디버그 스크린샷 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshots
+          path: /tmp/*.png
+          if-no-files-found: ignore

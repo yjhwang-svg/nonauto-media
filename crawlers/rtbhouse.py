@@ -34,9 +34,46 @@ def login(driver):
     driver.get(LOGIN_URL)
     wait = WebDriverWait(driver, 20)
 
-    email_input = wait.until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, 'input[type="email"], input[name="email"]'))
-    )
+    # ── 진단: 페이지 로드 후 상태 출력 ──────────────────────────────
+    time.sleep(3)
+    logger.info(f"현재 URL: {driver.current_url}")
+    logger.info(f"페이지 제목: {driver.title}")
+
+    # 스크린샷 저장 (GitHub Actions artifact로 확인 가능)
+    try:
+        driver.save_screenshot("/tmp/rtbhouse_login.png")
+        logger.info("스크린샷 저장: /tmp/rtbhouse_login.png")
+    except Exception as e:
+        logger.warning(f"스크린샷 저장 실패: {e}")
+
+    # 페이지에 있는 모든 input 출력
+    all_inputs = driver.find_elements(By.TAG_NAME, "input")
+    logger.info(f"페이지 내 input 개수: {len(all_inputs)}")
+    for i, inp in enumerate(all_inputs):
+        logger.info(f"  input[{i}] type={inp.get_attribute('type')} name={inp.get_attribute('name')} id={inp.get_attribute('id')} placeholder={inp.get_attribute('placeholder')}")
+    # ─────────────────────────────────────────────────────────────────
+
+    # 이메일 입력 — 여러 셀렉터를 순서대로 시도
+    email_selectors = [
+        'input[type="email"]',
+        'input[name="email"]',
+        'input[name="username"]',
+        'input[name="login"]',
+        'input[type="text"]',
+    ]
+    email_input = None
+    for sel in email_selectors:
+        try:
+            email_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, sel)))
+            logger.info(f"이메일 입력 셀렉터 성공: {sel}")
+            break
+        except TimeoutException:
+            logger.warning(f"이메일 셀렉터 실패: {sel}")
+            wait = WebDriverWait(driver, 5)  # 이후 시도는 5초씩
+
+    if not email_input:
+        raise Exception("이메일 입력 필드를 찾을 수 없음")
+
     email_input.clear()
     email_input.send_keys(os.environ["RTBHOUSE_EMAIL"])
 
@@ -47,11 +84,11 @@ def login(driver):
     submit_btn = driver.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
     submit_btn.click()
 
-    # 로그인 완료 대기 - URL 변화 또는 로그인 페이지 이탈 확인
+    # 로그인 완료 대기
     try:
-        wait.until(EC.url_changes(LOGIN_URL))
+        WebDriverWait(driver, 20).until(EC.url_changes(driver.current_url))
     except TimeoutException:
-        logger.warning("로그인 후 URL 변경 미감지 — 현재 URL: " + driver.current_url)
+        pass
     logger.info(f"RTB House 로그인 완료 — URL: {driver.current_url}")
     time.sleep(3)
 
