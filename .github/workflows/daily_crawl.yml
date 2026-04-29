@@ -25,12 +25,11 @@ jobs:
       - name: 의존성 설치
         run: pip install -r requirements.txt
 
-      - name: Google Chrome 설치 확인
+      - name: Firefox 설치
         run: |
-          google-chrome --version || (
-            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb &&
-            sudo apt install -y ./google-chrome-stable_current_amd64.deb
-          )
+          sudo apt-get update -y
+          sudo apt-get install -y firefox-esr
+          firefox-esr --version
 
       - name: 크롤링 및 Sheets 업로드 실행
         env:

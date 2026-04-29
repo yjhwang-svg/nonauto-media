@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
@@ -23,17 +23,10 @@ LOGIN_URL = "https://panel.rtbhouse.com/login"
 
 def build_driver():
     options = Options()
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
-    options.add_argument("--disable-webgl")
-    options.add_argument("--disable-3d-apis")
-    options.add_argument("--disable-software-rasterizer")
-    options.add_argument("--blink-settings=imagesEnabled=false")
-    options.page_load_strategy = "eager"
-    return webdriver.Chrome(options=options)
+    options.add_argument("--headless")
+    options.add_argument("--width=1920")
+    options.add_argument("--height=1080")
+    return webdriver.Firefox(options=options)
 
 
 def login(driver):
