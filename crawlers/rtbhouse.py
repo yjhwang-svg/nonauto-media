@@ -53,44 +53,29 @@ def login(driver):
         logger.info(f"  input[{i}] type={inp.get_attribute('type')} name={inp.get_attribute('name')} id={inp.get_attribute('id')} placeholder={inp.get_attribute('placeholder')}")
     # ─────────────────────────────────────────────────────────────────
 
-    # 이메일 입력 — 여러 셀렉터를 순서대로 시도
-    email_selectors = [
-        'input[type="email"]',
-        'input[name="email"]',
-        'input[name="username"]',
-        'input[name="login"]',
-        'input[type="text"]',
-    ]
-    email_input = None
-    for sel in email_selectors:
-        try:
-            email_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, sel)))
-            logger.info(f"이메일 입력 셀렉터 성공: {sel}")
-            break
-        except TimeoutException:
-            logger.warning(f"이메일 셀렉터 실패: {sel}")
-            wait = WebDriverWait(driver, 5)  # 이후 시도는 5초씩
-
-    if not email_input:
-        raise Exception("이메일 입력 필드를 찾을 수 없음")
-
+    # 로그인 폼 입력 (확인된 셀렉터 사용)
+    email_input = wait.until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, 'input[name="login"]'))
+    )
     email_input.clear()
     email_input.send_keys(os.environ["RTBHOUSE_EMAIL"])
 
-    password_input = driver.find_element(By.CSS_SELECTOR, 'input[type="password"]')
+    password_input = driver.find_element(By.CSS_SELECTOR, 'input[name="password"]')
     password_input.clear()
     password_input.send_keys(os.environ["RTBHOUSE_PASSWORD"])
 
     submit_btn = driver.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
     submit_btn.click()
 
-    # 로그인 완료 대기
+    # 로그인 완료 대기 — "login" 관련 URL에서 벗어날 때까지 대기
     try:
-        WebDriverWait(driver, 20).until(EC.url_changes(driver.current_url))
+        WebDriverWait(driver, 30).until(
+            lambda d: "login" not in d.current_url.lower()
+        )
     except TimeoutException:
-        pass
+        logger.warning(f"로그인 후 리다이렉트 대기 타임아웃 — 현재 URL: {driver.current_url}")
     logger.info(f"RTB House 로그인 완료 — URL: {driver.current_url}")
-    time.sleep(3)
+    time.sleep(2)
 
 
 def _clean_number(text: str) -> int:
@@ -125,28 +110,73 @@ def get_yesterday_data(driver, dashboard_url: str, label: str) -> dict | None:
     driver.get(dashboard_url)
     wait = WebDriverWait(driver, 40)
 
-    # 테이블 로드 대기
-    try:
-        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
-    except TimeoutException:
-        logger.warning(f"[RTB {label}] 테이블 로드 대기 중 타임아웃. 계속 진행.")
-    time.sleep(4)  # SPA 렌더링 추가 대기
+    # SPA 렌더링 대기 — table 또는 role=grid 중 먼저 나타나는 것
+    TABLE_SELECTORS = [
+        "table",
+        "[role='grid']",
+        "[role='table']",
+        "[role='row']",
+    ]
+    loaded = False
+    for sel in TABLE_SELECTORS:
+        try:
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, sel)))
+            logger.info(f"[RTB {label}] 테이블 감지 셀렉터: {sel}")
+            loaded = True
+            break
+        except TimeoutException:
+            wait = WebDriverWait(driver, 10)
+    if not loaded:
+        logger.warning(f"[RTB {label}] 테이블 미감지 — 현재 URL: {driver.current_url}")
 
-    # 헤더 인덱스 파악
-    try:
-        header_cells = driver.find_elements(By.CSS_SELECTOR, "table thead th, table thead td")
-        col = _get_header_indices(header_cells)
-        logger.info(f"[RTB {label}] 컬럼 인덱스: {col}")
-    except Exception as e:
-        logger.error(f"[RTB {label}] 헤더 파싱 실패: {e}")
-        col = {"date": 0, "imps": 1, "clicks": 2, "cost": 3}
+    time.sleep(4)
 
-    # 데이터 행 탐색
-    rows = driver.find_elements(By.CSS_SELECTOR, "table tbody tr")
+    # 스크린샷 저장 (dashboard 상태 확인용)
+    try:
+        driver.save_screenshot(f"/tmp/rtbhouse_{label.lower()}_dashboard.png")
+    except Exception:
+        pass
+
+    # 페이지 구조 진단 로그
+    logger.info(f"[RTB {label}] 현재 URL: {driver.current_url}")
+    for sel in ["table", "[role='grid']", "[role='row']", "[role='columnheader']"]:
+        count = len(driver.find_elements(By.CSS_SELECTOR, sel))
+        if count:
+            logger.info(f"[RTB {label}] '{sel}' 요소 수: {count}")
+
+    # 헤더 인덱스 파악 — table 또는 role=columnheader 시도
+    HEADER_SELECTORS = [
+        "table thead th",
+        "table thead td",
+        "[role='columnheader']",
+        "[role='gridcell']:first-child",
+    ]
+    header_cells = []
+    for sel in HEADER_SELECTORS:
+        header_cells = driver.find_elements(By.CSS_SELECTOR, sel)
+        if header_cells:
+            logger.info(f"[RTB {label}] 헤더 셀렉터 성공: {sel} ({len(header_cells)}개)")
+            break
+
+    col = _get_header_indices(header_cells)
+    logger.info(f"[RTB {label}] 컬럼 인덱스: {col}")
+
+    # 데이터 행 탐색 — table tr 또는 role=row 시도
+    ROW_SELECTORS = [
+        "table tbody tr",
+        "[role='row']",
+    ]
+    rows = []
+    for sel in ROW_SELECTORS:
+        rows = driver.find_elements(By.CSS_SELECTOR, sel)
+        if rows:
+            logger.info(f"[RTB {label}] 행 셀렉터 성공: {sel}")
+            break
     logger.info(f"[RTB {label}] 테이블 행 수: {len(rows)}")
 
     for row in rows:
-        cells = row.find_elements(By.CSS_SELECTOR, "td")
+        # table td 또는 role=gridcell 시도
+        cells = row.find_elements(By.CSS_SELECTOR, "td, [role='gridcell']")
         if not cells:
             continue
 
