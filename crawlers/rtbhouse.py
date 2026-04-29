@@ -64,18 +64,38 @@ def login(driver):
     password_input.clear()
     password_input.send_keys(os.environ["RTBHOUSE_PASSWORD"])
 
-    submit_btn = driver.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
-    submit_btn.click()
+    # Enter 키로 제출 (React 이벤트 트리거에 더 안정적)
+    from selenium.webdriver.common.keys import Keys
+    password_input.send_keys(Keys.RETURN)
+    logger.info("로그인 폼 제출 (Enter)")
 
-    # 로그인 완료 대기 — "login" 관련 URL에서 벗어날 때까지 대기
+    # 제출 후 5초 대기 후 스크린샷 (로그인 성공/실패 확인)
+    time.sleep(5)
     try:
-        WebDriverWait(driver, 30).until(
-            lambda d: "login" not in d.current_url.lower()
+        driver.save_screenshot("/tmp/rtbhouse_after_submit.png")
+        logger.info(f"제출 후 URL: {driver.current_url}")
+        logger.info(f"제출 후 제목: {driver.title}")
+    except Exception:
+        pass
+
+    # 페이지에 에러 메시지가 있는지 확인
+    error_selectors = ["[class*='error']", "[class*='Error']", "[role='alert']", ".alert"]
+    for sel in error_selectors:
+        elems = driver.find_elements(By.CSS_SELECTOR, sel)
+        for el in elems:
+            if el.text.strip():
+                logger.warning(f"페이지 오류 메시지 감지: '{el.text.strip()}'")
+
+    # 인증 완료 대기 — URL이 /auth/ 에서 벗어나면 성공
+    try:
+        WebDriverWait(driver, 20).until(
+            lambda d: "/auth/" not in d.current_url.lower()
         )
     except TimeoutException:
-        logger.warning(f"로그인 후 리다이렉트 대기 타임아웃 — 현재 URL: {driver.current_url}")
+        pass
+
     logger.info(f"RTB House 로그인 완료 — URL: {driver.current_url}")
-    time.sleep(2)
+    time.sleep(3)
 
 
 def _clean_number(text: str) -> int:
