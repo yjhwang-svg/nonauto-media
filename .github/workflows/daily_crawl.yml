@@ -6,11 +6,24 @@ on:
     - cron: "0 23 * * *"
   # Streamlit 앱 또는 GitHub UI에서 수동 실행 가능
   workflow_dispatch:
+    inputs:
+      target_date:
+        description: "재처리 대상 날짜 (YYYY-MM-DD, 비우면 KST 기준 전일)"
+        required: false
+        default: ""
+      allow_partial_upload:
+        description: "일부 매체 실패 시에도 Sheets 업로드 진행 (1이면 허용)"
+        required: false
+        default: "0"
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      TZ: Asia/Seoul
+      TARGET_DATE: ${{ github.event.inputs.target_date }}
+      ALLOW_PARTIAL_UPLOAD: ${{ github.event.inputs.allow_partial_upload }}
 
     steps:
       - name: 코드 체크아웃
@@ -24,6 +37,9 @@ jobs:
 
       - name: 의존성 설치
         run: pip install -r requirements.txt
+
+      - name: 단위 테스트 실행
+        run: python -m unittest discover -s tests
 
       - name: Firefox 설치
         uses: browser-actions/setup-firefox@v1
