@@ -8,10 +8,11 @@ Google Sheets 연동 모듈
 import json
 import logging
 import os
-from datetime import datetime, timedelta
 
 import gspread
 from google.oauth2.service_account import Credentials
+
+from utils.dates import get_target_date
 
 logger = logging.getLogger(__name__)
 
@@ -128,21 +129,22 @@ def _build_rows(yesterday: str, dynamic_config: dict,
 
 
 def append_daily_rows(spreadsheet_id: str, data_sheet_name: str, config_sheet_name: str,
-                      rtb_app: dict | None, rtb_web: dict | None, buzzvil: dict | None):
+                      rtb_app: dict | None, rtb_web: dict | None, buzzvil: dict | None,
+                      target_date: str | None = None):
     """
     수기매체업로드 시트 맨 아래에 전일자 5개 행을 추가.
     """
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    logger.info(f"Google Sheets 업로드 시작 (날짜: {yesterday})")
+    target_date = target_date or get_target_date()
+    logger.info(f"Google Sheets 업로드 시작 (날짜: {target_date})")
 
     client = get_client()
     spreadsheet = get_spreadsheet(client, spreadsheet_id)
     dynamic_config = load_dynamic_config(spreadsheet, config_sheet_name)
 
-    rows = _build_rows(yesterday, dynamic_config, rtb_app, rtb_web, buzzvil)
+    rows = _build_rows(target_date, dynamic_config, rtb_app, rtb_web, buzzvil)
 
     data_ws = spreadsheet.worksheet(data_sheet_name)
     data_ws.append_rows(rows, value_input_option="USER_ENTERED")
 
-    logger.info(f"업로드 완료: {len(rows)}개 행 추가 (날짜: {yesterday})")
+    logger.info(f"업로드 완료: {len(rows)}개 행 추가 (날짜: {target_date})")
     return rows

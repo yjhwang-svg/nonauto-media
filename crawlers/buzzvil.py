@@ -4,18 +4,13 @@ Buzzvil 대시보드 크롤러
 - adgroup_id는 Google Sheets '설정' 탭 또는 config.json에서 읽음
 """
 
-import os
 import re
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from crawlers.auth import assert_logged_in, require_env
+from utils.dates import get_target_date
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +19,9 @@ REPORT_URL_TEMPLATE = "https://dashboard.buzzvil.com/campaign/direct_sales/adgro
 
 
 def build_driver():
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -34,6 +32,11 @@ def build_driver():
 
 
 def login(driver):
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException
+
     logger.info("Buzzvil 로그인 시작")
     driver.get(LOGIN_URL)
     wait = WebDriverWait(driver, 20)
@@ -44,11 +47,11 @@ def login(driver):
         )
     )
     email_input.clear()
-    email_input.send_keys(os.environ["BUZZVIL_EMAIL"])
+    email_input.send_keys(require_env("BUZZVIL_EMAIL"))
 
     password_input = driver.find_element(By.CSS_SELECTOR, 'input[type="password"]')
     password_input.clear()
-    password_input.send_keys(os.environ["BUZZVIL_PASSWORD"])
+    password_input.send_keys(require_env("BUZZVIL_PASSWORD"))
 
     submit_btn = driver.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
     submit_btn.click()
@@ -58,6 +61,12 @@ def login(driver):
         wait.until(EC.url_changes(LOGIN_URL))
     except TimeoutException:
         pass
+
+    try:
+        driver.save_screenshot("/tmp/buzzvil_after_submit.png")
+    except Exception:
+        pass
+    assert_logged_in(driver, "Buzzvil")
     logger.info("Buzzvil 로그인 성공")
     time.sleep(2)
 
@@ -103,13 +112,27 @@ def _parse_date(text: str) -> str:
     m = re.match(r"(\d{4})\.(\d{1,2})\.(\d{1,2})", text)
     if m:
         return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+    # 2026년 5월 4일
+    m = re.match(r"(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일", text)
+    if m:
+        return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)}"
+    for fmt in ("%b %d, %Y", "%B %d, %Y", "%b %d %Y", "%B %d %Y"):
+        try:
+            return datetime.strptime(text, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
     return text
 
 
-def get_yesterday_data(driver, adgroup_id: str) -> dict | None:
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+def get_yesterday_data(driver, adgroup_id: str, target_date: str | None = None) -> dict | None:
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException
+
+    target_date = target_date or get_target_date()
     report_url = REPORT_URL_TEMPLATE.format(adgroup_id=adgroup_id)
-    logger.info(f"[Buzzvil] {yesterday} 데이터 수집 시작: {report_url}")
+    logger.info(f"[Buzzvil] {target_date} 데이터 수집 시작: {report_url}")
 
     driver.get(report_url)
     wait = WebDriverWait(driver, 40)
@@ -145,7 +168,7 @@ def get_yesterday_data(driver, adgroup_id: str) -> dict | None:
 
         raw_date = cells[date_idx].text.strip()
         normalized = _parse_date(raw_date)
-        if yesterday not in normalized:
+        if target_date not in normalized:
             continue
 
         try:
@@ -159,11 +182,11 @@ def get_yesterday_data(driver, adgroup_id: str) -> dict | None:
             logger.error(f"[Buzzvil] 셀 파싱 오류: {e}")
             return None
 
-    logger.warning(f"[Buzzvil] 날짜 {yesterday}에 해당하는 행 없음")
+    logger.warning(f"[Buzzvil] 날짜 {target_date}에 해당하는 행 없음")
     return None
 
 
-def scrape(adgroup_id: str) -> dict | None:
+def scrape(adgroup_id: str, target_date: str | None = None) -> dict | None:
     """
     Buzzvil 대시보드에서 전일자 데이터를 수집.
     Returns: data dict or None
@@ -171,9 +194,6 @@ def scrape(adgroup_id: str) -> dict | None:
     driver = build_driver()
     try:
         login(driver)
-        return get_yesterday_data(driver, adgroup_id)
-    except Exception as e:
-        logger.error(f"Buzzvil 크롤링 오류: {e}")
-        return None
+        return get_yesterday_data(driver, adgroup_id, target_date=target_date)
     finally:
         driver.quit()

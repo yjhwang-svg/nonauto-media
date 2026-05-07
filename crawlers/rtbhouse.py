@@ -3,18 +3,12 @@ RTB House 대시보드 크롤러
 - APP / WEB 각각 전일자 Imps / Clicks / Cost(KRW) 수집
 """
 
-import os
 import re
 import time
 import logging
-from datetime import datetime, timedelta
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from crawlers.auth import assert_login_form_absent, require_env
+from utils.dates import get_target_date
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +16,9 @@ LOGIN_URL = "https://panel.rtbhouse.com/login"
 
 
 def build_driver():
+    from selenium import webdriver
+    from selenium.webdriver.firefox.options import Options
+
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--width=1920")
@@ -30,6 +27,11 @@ def build_driver():
 
 
 def login(driver):
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException
+
     logger.info("RTB House 로그인 시작")
     driver.get(LOGIN_URL)
     wait = WebDriverWait(driver, 20)
@@ -58,11 +60,11 @@ def login(driver):
         EC.presence_of_element_located((By.CSS_SELECTOR, 'input[name="login"]'))
     )
     email_input.clear()
-    email_input.send_keys(os.environ["RTBHOUSE_EMAIL"])
+    email_input.send_keys(require_env("RTBHOUSE_EMAIL"))
 
     password_input = driver.find_element(By.CSS_SELECTOR, 'input[name="password"]')
     password_input.clear()
-    password_input.send_keys(os.environ["RTBHOUSE_PASSWORD"])
+    password_input.send_keys(require_env("RTBHOUSE_PASSWORD"))
 
     # Enter 키로 제출 (React 이벤트 트리거에 더 안정적)
     from selenium.webdriver.common.keys import Keys
@@ -86,22 +88,44 @@ def login(driver):
             if el.text.strip():
                 logger.warning(f"페이지 오류 메시지 감지: '{el.text.strip()}'")
 
-    # 인증 완료 대기 — URL이 /auth/ 에서 벗어나면 성공
+    # 인증 완료 대기 — 로그인 화면을 벗어나야 성공
     try:
         WebDriverWait(driver, 20).until(
-            lambda d: "/auth/" not in d.current_url.lower()
+            lambda d: not ("/login" in d.current_url.lower() or "/auth/login" in d.current_url.lower())
         )
     except TimeoutException:
         pass
 
+    assert_login_form_absent(driver, "RTB House", 'input[name="login"], input[name="password"]')
     logger.info(f"RTB House 로그인 완료 — URL: {driver.current_url}")
     time.sleep(3)
 
 
 def _clean_number(text: str) -> int:
-    """'57,022' → 57022, '148,269 KRW' → 148269"""
-    cleaned = re.sub(r"[^\d]", "", text.strip())
-    return int(cleaned) if cleaned else 0
+    """'57,022' -> 57022, '319 808.82' -> 319809."""
+    normalized = text.strip().replace(",", "").replace(" ", "")
+    match = re.search(r"\d+(?:\.\d+)?", normalized)
+    return round(float(match.group(0))) if match else 0
+
+
+def _parse_visible_text_row(body_text: str, target_date: str) -> dict | None:
+    lines = [line.strip() for line in body_text.splitlines() if line.strip()]
+    for index, line in enumerate(lines):
+        if target_date not in line:
+            continue
+
+        values = []
+        for candidate in lines[index + 1:]:
+            if re.match(r"\d{4}-\d{2}-\d{2}", candidate):
+                break
+            values.append(candidate)
+            if len(values) >= 4:
+                return {
+                    "imps": _clean_number(values[0]),
+                    "clicks": _clean_number(values[1]),
+                    "cost": _clean_number(values[3]),
+                }
+    return None
 
 
 def _get_header_indices(header_cells: list) -> dict:
@@ -123,9 +147,14 @@ def _get_header_indices(header_cells: list) -> dict:
     return mapping
 
 
-def get_yesterday_data(driver, dashboard_url: str, label: str) -> dict | None:
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    logger.info(f"[RTB {label}] {yesterday} 데이터 수집 시작: {dashboard_url}")
+def get_yesterday_data(driver, dashboard_url: str, label: str, target_date: str | None = None) -> dict | None:
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException
+
+    target_date = target_date or get_target_date()
+    logger.info(f"[RTB {label}] {target_date} 데이터 수집 시작: {dashboard_url}")
 
     driver.get(dashboard_url)
     wait = WebDriverWait(driver, 40)
@@ -205,7 +234,7 @@ def get_yesterday_data(driver, dashboard_url: str, label: str) -> dict | None:
             continue
 
         date_text = cells[date_idx].text.strip()
-        if yesterday not in date_text:
+        if target_date not in date_text:
             continue
 
         try:
@@ -219,11 +248,22 @@ def get_yesterday_data(driver, dashboard_url: str, label: str) -> dict | None:
             logger.error(f"[RTB {label}] 셀 파싱 오류: {e}")
             return None
 
-    logger.warning(f"[RTB {label}] 날짜 {yesterday}에 해당하는 행 없음")
+    try:
+        fallback_data = _parse_visible_text_row(driver.find_element(By.TAG_NAME, "body").text, target_date)
+    except Exception:
+        fallback_data = None
+    if fallback_data:
+        logger.info(
+            f"[RTB {label}] 화면 텍스트 fallback 수집 완료 → "
+            f"imps={fallback_data['imps']}, clicks={fallback_data['clicks']}, cost={fallback_data['cost']}"
+        )
+        return fallback_data
+
+    logger.warning(f"[RTB {label}] 날짜 {target_date}에 해당하는 행 없음")
     return None
 
 
-def scrape(app_url: str, web_url: str) -> tuple[dict | None, dict | None]:
+def scrape(app_url: str, web_url: str, target_date: str | None = None) -> tuple[dict | None, dict | None]:
     """
     RTB House APP / WEB 대시보드에서 전일자 데이터를 수집.
     Returns: (app_data, web_data) — 실패 시 None
@@ -231,11 +271,8 @@ def scrape(app_url: str, web_url: str) -> tuple[dict | None, dict | None]:
     driver = build_driver()
     try:
         login(driver)
-        app_data = get_yesterday_data(driver, app_url, "APP")
-        web_data = get_yesterday_data(driver, web_url, "WEB")
+        app_data = get_yesterday_data(driver, app_url, "APP", target_date=target_date)
+        web_data = get_yesterday_data(driver, web_url, "WEB", target_date=target_date)
         return app_data, web_data
-    except Exception as e:
-        logger.error(f"RTB House 크롤링 오류: {e}")
-        return None, None
     finally:
         driver.quit()
