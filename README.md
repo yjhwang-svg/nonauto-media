@@ -36,6 +36,13 @@ nonauto-media/
 | `BUZZVIL_PASSWORD` | Buzzvil 비밀번호 |
 | `GOOGLE_SERVICE_ACCOUNT` | service_account.json 파일 전체 내용 (텍스트) |
 
+선택 환경변수:
+
+| 이름 | 값 |
+|---|---|
+| `TARGET_DATE` | 수동 재처리 대상 날짜 (`YYYY-MM-DD`) |
+| `ALLOW_PARTIAL_UPLOAD` | `1`이면 일부 매체 실패 시에도 Sheets 업로드 진행 |
+
 ### 2. Google Sheets 설정 시트 초기화
 
 첫 실행 시 `설정` 시트가 자동 생성됩니다.  
@@ -75,6 +82,12 @@ GITHUB_REPO  = "yjhwang-svg/nonauto-media"
 **방법 A**: Streamlit 앱 → `▶ 수동 실행` 탭 → `🚀 지금 실행` 버튼
 
 **방법 B**: GitHub → Actions 탭 → `Daily Media Crawl` → `Run workflow`
+
+자동 실행은 GitHub Actions 서버 시간이 아니라 KST 기준 “전일”을 대상 날짜로 계산합니다.  
+특정 날짜를 다시 넣어야 하면 workflow 환경변수로 `TARGET_DATE=YYYY-MM-DD`를 지정해 실행하세요.
+
+크롤링 오류가 있으면 기본적으로 Sheets 업로드를 건너뛰고 Action을 실패 처리합니다.  
+오류가 있는 상태에서도 BSA 등 일부 행을 올려야 하는 경우에만 `ALLOW_PARTIAL_UPLOAD=1`을 사용하세요.
 
 ---
 

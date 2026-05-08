@@ -11,12 +11,14 @@ GitHub Actions 또는 Streamlit '지금 실행' 버튼에서 호출됨.
 
 import json
 import logging
+import os
 import sys
-from datetime import datetime, timedelta
 from pathlib import Path
 
 from crawlers import rtbhouse, buzzvil
 from sheets import uploader
+from utils.dates import get_target_date
+from utils.upload_policy import should_upload
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,8 +39,9 @@ def run() -> dict:
     전체 크롤링 및 업로드 실행.
     반환값: 각 매체별 결과 요약 dict
     """
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    logger.info(f"=== 자동화 시작 | 대상 날짜: {yesterday} ===")
+    target_date = get_target_date()
+    os.environ.setdefault("TARGET_DATE", target_date)
+    logger.info(f"=== 자동화 시작 | 대상 날짜: {target_date} ===")
 
     static_cfg = load_static_config()
     spreadsheet_id   = static_cfg["spreadsheet_id"]
@@ -52,7 +55,7 @@ def run() -> dict:
     buzzvil_adgroup_id = dynamic_cfg.get("buzzvil_adgroup_id", "55015")
 
     results = {
-        "date": yesterday,
+        "date": target_date,
         "rtb_app": None,
         "rtb_web": None,
         "buzzvil": None,
@@ -65,6 +68,7 @@ def run() -> dict:
         app_data, web_data = rtbhouse.scrape(
             app_url=static_cfg["rtbhouse"]["app_dashboard_url"],
             web_url=static_cfg["rtbhouse"]["web_dashboard_url"],
+            target_date=target_date,
         )
         results["rtb_app"] = app_data
         results["rtb_web"] = web_data
@@ -79,7 +83,7 @@ def run() -> dict:
     # ── Buzzvil 크롤링 ──────────────────────────────────────
     logger.info("--- Buzzvil 크롤링 시작 ---")
     try:
-        bv_data = buzzvil.scrape(adgroup_id=buzzvil_adgroup_id)
+        bv_data = buzzvil.scrape(adgroup_id=buzzvil_adgroup_id, target_date=target_date)
         results["buzzvil"] = bv_data
         if not bv_data:
             results["errors"].append("Buzzvil 데이터 없음")
@@ -89,20 +93,26 @@ def run() -> dict:
 
     # ── Google Sheets 업로드 ────────────────────────────────
     logger.info("--- Google Sheets 업로드 시작 ---")
-    try:
-        uploaded_rows = uploader.append_daily_rows(
-            spreadsheet_id=spreadsheet_id,
-            data_sheet_name=data_sheet_name,
-            config_sheet_name=config_sheet_name,
-            rtb_app=results["rtb_app"],
-            rtb_web=results["rtb_web"],
-            buzzvil=results["buzzvil"],
-        )
-        results["uploaded_rows"] = uploaded_rows
-        logger.info(f"업로드 완료: {len(uploaded_rows)}개 행")
-    except Exception as e:
-        logger.error(f"Google Sheets 업로드 실패: {e}")
-        results["errors"].append(f"Sheets 업로드 오류: {e}")
+    allow_partial_upload = os.environ.get("ALLOW_PARTIAL_UPLOAD") == "1"
+    if not should_upload(results["errors"], allow_partial=allow_partial_upload):
+        results["uploaded_rows"] = []
+        logger.warning("크롤링 오류가 있어 Google Sheets 업로드를 건너뜁니다.")
+    else:
+        try:
+            uploaded_rows = uploader.append_daily_rows(
+                spreadsheet_id=spreadsheet_id,
+                data_sheet_name=data_sheet_name,
+                config_sheet_name=config_sheet_name,
+                rtb_app=results["rtb_app"],
+                rtb_web=results["rtb_web"],
+                buzzvil=results["buzzvil"],
+                target_date=target_date,
+            )
+            results["uploaded_rows"] = uploaded_rows
+            logger.info(f"업로드 완료: {len(uploaded_rows)}개 행")
+        except Exception as e:
+            logger.error(f"Google Sheets 업로드 실패: {e}")
+            results["errors"].append(f"Sheets 업로드 오류: {e}")
 
     # ── 결과 요약 ────────────────────────────────────────────
     logger.info("=== 실행 완료 ===")
@@ -115,4 +125,4 @@ def run() -> dict:
 
 
 if __name__ == "__main__":
-    run()
+    sys.exit(1 if run().get("errors") else 0)
