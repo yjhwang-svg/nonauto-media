@@ -98,11 +98,12 @@ def fetch_day_totals(advertiser_hash: str, target_date: str, label: str) -> dict
         return None
 
 
-def scrape(app_url: str, web_url: str) -> tuple[dict | None, dict | None]:
+def scrape(app_url: str, web_url: str, target_date: str | None = None) -> tuple[dict | None, dict | None]:
     """
     RTB House APP / WEB 전일자 데이터를 API로 수집.
+    target_date: 'YYYY-MM-DD' 형식, None이면 전일자 자동 계산
     """
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    yesterday = target_date or (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     logger.info(f"RTB House API 크롤링 시작 | 대상 날짜: {yesterday}")
 
     app_hash = _extract_hash_from_url(app_url)

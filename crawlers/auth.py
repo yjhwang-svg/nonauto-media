@@ -12,10 +12,16 @@ def require_env(name: str, env: Mapping[str, str] | None = None) -> str:
 
 
 def is_login_page(url: str, title: str = "") -> bool:
-    parsed = urlparse(url)
-    path = parsed.path.rstrip("/").lower()
     normalized_title = title.strip().lower()
 
+    # title이 명확히 로그인과 무관한 페이지를 나타내면 로그인 성공으로 판단
+    # (Buzzvil 등 SPA는 로그인 후에도 URL이 /login으로 남는 경우가 있음)
+    login_titles = {"login", "sign in", "signin", "log in"}
+    if normalized_title and normalized_title not in login_titles and "sign in" not in normalized_title:
+        return False
+
+    parsed = urlparse(url)
+    path = parsed.path.rstrip("/").lower()
     if path.endswith("/login") or path.endswith("/auth/login"):
         return True
     return "sign in" in normalized_title or normalized_title == "login"
