@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>수기매체 자동화 재실행</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .icon { font-size: 40px; margin-bottom: 12px; }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 6px;
+    }
+
+    .desc {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #444;
+      margin-bottom: 8px;
+    }
+
+    input[type="date"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 15px;
+      color: #1a1a1a;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 20px;
+    }
+
+    input[type="date"]:focus { border-color: #4f7cff; }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #4f7cff;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+
+    button:hover { background: #3a66e8; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .result {
+      margin-top: 20px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-line;
+      display: none;
+    }
+
+    .result.success { background: #eaf4eb; color: #2d7a3a; }
+    .result.error   { background: #fdecea; color: #b71c1c; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📊</div>
+    <h1>수기매체 자동화 재실행</h1>
+    <p class="desc">재처리할 날짜를 선택하고 실행하면<br>해당 날짜 데이터를 다시 수집·업로드합니다.</p>
+
+    <label for="date-input">재처리 날짜</label>
+    <input type="date" id="date-input" />
+
+    <button id="run-btn" onclick="run()">실행</button>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <script>
+    // 기본값: 어제 날짜
+    (function () {
+      var d = new Date();
+      d.setDate(d.getDate() - 1);
+      var yyyy = d.getFullYear();
+      var mm   = String(d.getMonth() + 1).padStart(2, "0");
+      var dd   = String(d.getDate()).padStart(2, "0");
+      document.getElementById("date-input").value = yyyy + "-" + mm + "-" + dd;
+      document.getElementById("date-input").max   = yyyy + "-" + mm + "-" + dd;
+    })();
+
+    function run() {
+      var dateVal = document.getElementById("date-input").value;
+      if (!dateVal) { alert("날짜를 선택해주세요."); return; }
+
+      var btn    = document.getElementById("run-btn");
+      var result = document.getElementById("result");
+
+      btn.disabled  = true;
+      btn.innerHTML = '<span class="spinner"></span>실행 중...';
+      result.style.display = "none";
+
+      google.script.run
+        .withSuccessHandler(function (res) {
+          btn.disabled  = false;
+          btn.innerHTML = "실행";
+          result.className   = "result " + (res.success ? "success" : "error");
+          result.textContent = res.success ? "✅ " + res.message : "❌ " + res.message;
+          result.style.display = "block";
+        })
+        .withFailureHandler(function (err) {
+          btn.disabled  = false;
+          btn.innerHTML = "실행";
+          result.className   = "result error";
+          result.textContent = "❌ 오류: " + err.message;
+          result.style.display = "block";
+        })
+        .triggerWorkflow(dateVal);
+    }
+  </script>
+</body>
+</html>

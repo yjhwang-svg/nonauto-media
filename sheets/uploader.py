@@ -128,11 +128,31 @@ def _build_rows(yesterday: str, dynamic_config: dict,
     return rows
 
 
+def _delete_rows_for_date(ws: gspread.Worksheet, target_date: str):
+    """
+    시트에서 날짜(첫 번째 열)가 target_date인 행을 모두 삭제.
+    인덱스 밀림 방지를 위해 아래에서 위 순서로 삭제.
+    """
+    all_values = ws.get_all_values()
+    rows_to_delete = [
+        idx + 1  # 1-indexed (헤더 포함)
+        for idx, row in enumerate(all_values)
+        if row and str(row[0]).strip() == target_date
+    ]
+    if not rows_to_delete:
+        logger.info(f"삭제 대상 없음: {target_date} 날짜 행이 존재하지 않음")
+        return
+    logger.info(f"중복 행 {len(rows_to_delete)}개 삭제 (날짜: {target_date}, 행 번호: {rows_to_delete})")
+    for row_idx in reversed(rows_to_delete):
+        ws.delete_rows(row_idx)
+
+
 def append_daily_rows(spreadsheet_id: str, data_sheet_name: str, config_sheet_name: str,
                       rtb_app: dict | None, rtb_web: dict | None, buzzvil: dict | None,
                       target_date: str | None = None):
     """
-    수기매체업로드 시트 맨 아래에 전일자 5개 행을 추가.
+    수기매체업로드 시트에 전일자 5개 행을 추가.
+    동일 날짜 데이터가 이미 존재하면 해당 행 전체를 삭제 후 재업로드.
     """
     target_date = target_date or get_target_date()
     logger.info(f"Google Sheets 업로드 시작 (날짜: {target_date})")
@@ -144,6 +164,7 @@ def append_daily_rows(spreadsheet_id: str, data_sheet_name: str, config_sheet_na
     rows = _build_rows(target_date, dynamic_config, rtb_app, rtb_web, buzzvil)
 
     data_ws = spreadsheet.worksheet(data_sheet_name)
+    _delete_rows_for_date(data_ws, target_date)
     data_ws.append_rows(rows, value_input_option="USER_ENTERED")
 
     logger.info(f"업로드 완료: {len(rows)}개 행 추가 (날짜: {target_date})")

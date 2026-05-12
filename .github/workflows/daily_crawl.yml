@@ -78,7 +78,6 @@ jobs:
             STATUS_TEXT="업로드 실패"
           fi
           TARGET=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d' 2>/dev/null || TZ=Asia/Seoul date -v-1d '+%Y-%m-%d')
-          RERUN_URL="https://github.com/${{ github.repository }}/actions/workflows/daily_crawl.yml"
           curl -s -X POST "$SLACK_WEBHOOK_URL" \
             -H 'Content-Type: application/json' \
-            -d "{\"text\": \"${ICON} *[수기매체 자동화]* ${STATUS_TEXT}\n대상 날짜: \`${TARGET}\`\n데이터 이상 시 → <${RERUN_URL}|날짜 지정 재실행>\"}"
+            -d "{\"text\": \"${ICON} *[수기매체 자동화]* ${STATUS_TEXT}\n대상 날짜: \`${TARGET}\`\"}"
