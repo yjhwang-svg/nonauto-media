@@ -22,8 +22,6 @@ jobs:
     timeout-minutes: 30
     env:
       TZ: Asia/Seoul
-      TARGET_DATE: ${{ github.event.inputs.target_date }}
-      ALLOW_PARTIAL_UPLOAD: ${{ github.event.inputs.allow_partial_upload }}
 
     steps:
       - name: 코드 체크아웃
@@ -49,6 +47,8 @@ jobs:
 
       - name: 크롤링 및 Sheets 업로드 실행
         env:
+          TARGET_DATE: ${{ github.event.inputs.target_date }}
+          ALLOW_PARTIAL_UPLOAD: ${{ github.event.inputs.allow_partial_upload || '0' }}
           RTBHOUSE_EMAIL:    ${{ secrets.RTBHOUSE_EMAIL }}
           RTBHOUSE_PASSWORD: ${{ secrets.RTBHOUSE_PASSWORD }}
           BUZZVIL_EMAIL:     ${{ secrets.BUZZVIL_EMAIL }}
