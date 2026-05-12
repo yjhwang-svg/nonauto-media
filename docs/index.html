@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>수기매체 자동화 재실행</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .icon { font-size: 40px; margin-bottom: 12px; }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 6px;
+    }
+
+    .desc {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #444;
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 15px;
+      color: #1a1a1a;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 16px;
+    }
+
+    input:focus { border-color: #4f7cff; }
+
+    .token-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .token-row input { margin-bottom: 0; flex: 1; }
+
+    .token-save-btn {
+      padding: 12px 14px;
+      background: #f0f0f0;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #444;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+
+    .token-save-btn:hover { background: #e0e0e0; }
+
+    .token-hint {
+      font-size: 12px;
+      color: #999;
+      margin-top: -10px;
+      margin-bottom: 20px;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #f0f0f0;
+      margin: 20px 0;
+    }
+
+    button#run-btn {
+      width: 100%;
+      padding: 14px;
+      background: #4f7cff;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+
+    button#run-btn:hover { background: #3a66e8; }
+    button#run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .result {
+      margin-top: 20px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-line;
+      display: none;
+    }
+
+    .result.success { background: #eaf4eb; color: #2d7a3a; }
+    .result.error   { background: #fdecea; color: #b71c1c; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📊</div>
+    <h1>수기매체 자동화 재실행</h1>
+    <p class="desc">재처리할 날짜를 선택하고 실행하면<br>해당 날짜 데이터를 다시 수집·업로드합니다.</p>
+
+    <label for="token-input">GitHub Token</label>
+    <div class="token-row">
+      <input type="password" id="token-input" placeholder="ghp_xxxx..." />
+      <button class="token-save-btn" onclick="saveToken()">저장</button>
+    </div>
+    <p class="token-hint">* 이 기기에 저장됩니다. 다음 방문 시 자동 입력됩니다.</p>
+
+    <hr class="divider" />
+
+    <label for="date-input">재처리 날짜</label>
+    <input type="date" id="date-input" />
+
+    <button id="run-btn" onclick="run()">실행</button>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <script>
+    var REPO  = "yjhwang-svg/nonauto-media";
+    var WF    = "daily_crawl.yml";
+
+    // 저장된 토큰 불러오기
+    (function init() {
+      var saved = localStorage.getItem("gh_token");
+      if (saved) document.getElementById("token-input").value = saved;
+
+      var d = new Date();
+      d.setDate(d.getDate() - 1);
+      var yyyy = d.getFullYear();
+      var mm   = String(d.getMonth() + 1).padStart(2, "0");
+      var dd   = String(d.getDate()).padStart(2, "0");
+      var yesterday = yyyy + "-" + mm + "-" + dd;
+      document.getElementById("date-input").value = yesterday;
+      document.getElementById("date-input").max   = yesterday;
+    })();
+
+    function saveToken() {
+      var token = document.getElementById("token-input").value.trim();
+      if (!token) { alert("토큰을 입력해주세요."); return; }
+      localStorage.setItem("gh_token", token);
+      alert("저장됐습니다.");
+    }
+
+    function run() {
+      var token   = document.getElementById("token-input").value.trim();
+      var dateVal = document.getElementById("date-input").value;
+
+      if (!token)   { alert("GitHub Token을 입력해주세요."); return; }
+      if (!dateVal) { alert("날짜를 선택해주세요."); return; }
+
+      var btn    = document.getElementById("run-btn");
+      var result = document.getElementById("result");
+
+      btn.disabled  = true;
+      btn.innerHTML = '<span class="spinner"></span>실행 중...';
+      result.style.display = "none";
+
+      var url = "https://api.github.com/repos/" + REPO + "/actions/workflows/" + WF + "/dispatches";
+
+      fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Accept": "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          ref: "main",
+          inputs: { target_date: dateVal, allow_partial_upload: "1" }
+        })
+      })
+      .then(function(res) {
+        btn.disabled  = false;
+        btn.innerHTML = "실행";
+        if (res.status === 204) {
+          result.className   = "result success";
+          result.textContent = "✅ " + dateVal + " 재실행이 시작됐습니다.\n약 3~5분 후 완료됩니다.";
+        } else {
+          return res.text().then(function(text) {
+            result.className   = "result error";
+            result.textContent = "❌ 실행 실패 (HTTP " + res.status + ")\n" + text;
+          });
+        }
+        result.style.display = "block";
+      })
+      .catch(function(err) {
+        btn.disabled  = false;
+        btn.innerHTML = "실행";
+        result.className   = "result error";
+        result.textContent = "❌ 오류: " + err.message;
+        result.style.display = "block";
+      });
+    }
+  </script>
+</body>
+</html>
