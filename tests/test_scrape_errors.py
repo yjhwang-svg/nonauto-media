@@ -23,15 +23,17 @@ class ScrapeErrorTests(unittest.TestCase):
 
         self.assertTrue(driver.quit_called)
 
-    def test_rtbhouse_scrape_propagates_login_failure(self):
-        driver = FakeDriver()
+    def test_rtbhouse_scrape_returns_none_on_api_error(self):
+        # API 방식: _call_api 실패 시 scrape()가 (None, None)을 반환해야 함
+        with patch.object(rtbhouse, "_call_api", side_effect=RuntimeError("api error")), \
+             patch.object(rtbhouse, "_get_credentials", return_value=("u@x.com", "pw")):
+            app_data, web_data = rtbhouse.scrape(
+                "https://panel.rtbhouse.com/dashboard/appHash?x=1",
+                "https://panel.rtbhouse.com/dashboard/webHash?x=1",
+            )
 
-        with patch.object(rtbhouse, "build_driver", return_value=driver):
-            with patch.object(rtbhouse, "login", side_effect=RuntimeError("login failed")):
-                with self.assertRaisesRegex(RuntimeError, "login failed"):
-                    rtbhouse.scrape("https://example.com/app", "https://example.com/web", target_date="2026-05-05")
-
-        self.assertTrue(driver.quit_called)
+        self.assertIsNone(app_data)
+        self.assertIsNone(web_data)
 
 
 if __name__ == "__main__":
