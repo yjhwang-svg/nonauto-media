@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 from crawlers import rtbhouse, buzzvil
@@ -34,13 +35,12 @@ def load_static_config() -> dict:
         return json.load(f)
 
 
-def run() -> dict:
+def run(target_date: str | None = None) -> dict:
     """
     전체 크롤링 및 업로드 실행.
     반환값: 각 매체별 결과 요약 dict
     """
-    target_date = get_target_date()
-    os.environ.setdefault("TARGET_DATE", target_date)
+    target_date = target_date or get_target_date()
     logger.info(f"=== 자동화 시작 | 대상 날짜: {target_date} ===")
 
     static_cfg = load_static_config()
@@ -124,5 +124,24 @@ def run() -> dict:
     return results
 
 
+def get_dates_to_process() -> list[str]:
+    """DATE_FROM/DATE_TO가 있으면 범위, 아니면 TARGET_DATE(단일) 반환."""
+    date_from = os.environ.get("DATE_FROM", "").strip()
+    date_to   = os.environ.get("DATE_TO",   "").strip()
+    if date_from and date_to:
+        from_d, to_d = date.fromisoformat(date_from), date.fromisoformat(date_to)
+        dates, cur = [], from_d
+        while cur <= to_d:
+            dates.append(str(cur))
+            cur += timedelta(days=1)
+        return dates
+    return [get_target_date()]
+
+
 if __name__ == "__main__":
-    sys.exit(1 if run().get("errors") else 0)
+    dates = get_dates_to_process()
+    all_errors: list[str] = []
+    for d in dates:
+        result = run(target_date=d)
+        all_errors.extend(result.get("errors", []))
+    sys.exit(1 if all_errors else 0)

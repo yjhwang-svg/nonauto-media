@@ -23,7 +23,7 @@
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
       padding: 40px 36px;
       width: 100%;
-      max-width: 420px;
+      max-width: 440px;
     }
 
     .icon { font-size: 40px; margin-bottom: 12px; }
@@ -50,7 +50,8 @@
       margin-bottom: 8px;
     }
 
-    input {
+    input[type="date"],
+    input[type="password"] {
       width: 100%;
       padding: 12px 14px;
       border: 1.5px solid #e0e0e0;
@@ -60,6 +61,7 @@
       outline: none;
       transition: border-color 0.2s;
       margin-bottom: 16px;
+      background: #fff;
     }
 
     input:focus { border-color: #4f7cff; }
@@ -67,7 +69,6 @@
     .token-row {
       display: flex;
       gap: 8px;
-      align-items: flex-start;
       margin-bottom: 16px;
     }
 
@@ -101,6 +102,60 @@
       margin: 20px 0;
     }
 
+    /* 모드 탭 */
+    .mode-tabs {
+      display: flex;
+      background: #f5f5f7;
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 20px;
+    }
+
+    .mode-tab {
+      flex: 1;
+      padding: 9px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #888;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      background: transparent;
+    }
+
+    .mode-tab.active {
+      background: #fff;
+      color: #4f7cff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+    }
+
+    /* 기간 선택 행 */
+    .date-range-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .date-range-row .date-group {
+      flex: 1;
+    }
+
+    .date-range-row label {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    .date-range-row input { margin-bottom: 0; }
+
+    .range-arrow {
+      padding-top: 38px;
+      color: #bbb;
+      font-size: 18px;
+    }
+
     button#run-btn {
       width: 100%;
       padding: 14px;
@@ -112,6 +167,7 @@
       font-weight: 600;
       cursor: pointer;
       transition: background 0.2s, opacity 0.2s;
+      margin-top: 4px;
     }
 
     button#run-btn:hover { background: #3a66e8; }
@@ -150,7 +206,7 @@
     <h1>수기매체 자동화 재실행</h1>
     <p class="desc">재처리할 날짜를 선택하고 실행하면<br>해당 날짜 데이터를 다시 수집·업로드합니다.</p>
 
-    <label for="token-input">GitHub Token</label>
+    <label>GitHub Token</label>
     <div class="token-row">
       <input type="password" id="token-input" placeholder="ghp_xxxx..." />
       <button class="token-save-btn" onclick="saveToken()">저장</button>
@@ -159,8 +215,32 @@
 
     <hr class="divider" />
 
-    <label for="date-input">재처리 날짜</label>
-    <input type="date" id="date-input" />
+    <!-- 모드 탭 -->
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="tab-single" onclick="setMode('single')">단일 날짜</button>
+      <button class="mode-tab" id="tab-range" onclick="setMode('range')">기간 선택</button>
+    </div>
+
+    <!-- 단일 날짜 -->
+    <div id="panel-single">
+      <label for="date-single">날짜</label>
+      <input type="date" id="date-single" />
+    </div>
+
+    <!-- 기간 선택 -->
+    <div id="panel-range" style="display:none;">
+      <div class="date-range-row">
+        <div class="date-group">
+          <label for="date-from">시작 날짜</label>
+          <input type="date" id="date-from" />
+        </div>
+        <div class="range-arrow">→</div>
+        <div class="date-group">
+          <label for="date-to">종료 날짜</label>
+          <input type="date" id="date-to" />
+        </div>
+      </div>
+    </div>
 
     <button id="run-btn" onclick="run()">실행</button>
 
@@ -168,23 +248,36 @@
   </div>
 
   <script>
-    var REPO  = "yjhwang-svg/nonauto-media";
-    var WF    = "daily_crawl.yml";
+    var REPO = "yjhwang-svg/nonauto-media";
+    var WF   = "daily_crawl.yml";
+    var mode = "single";
 
-    // 저장된 토큰 불러오기
     (function init() {
       var saved = localStorage.getItem("gh_token");
       if (saved) document.getElementById("token-input").value = saved;
 
+      var yesterday = getYesterday();
+      document.getElementById("date-single").value = yesterday;
+      document.getElementById("date-single").max   = yesterday;
+      document.getElementById("date-from").max      = yesterday;
+      document.getElementById("date-to").max        = yesterday;
+      document.getElementById("date-from").value    = yesterday;
+      document.getElementById("date-to").value      = yesterday;
+    })();
+
+    function getYesterday() {
       var d = new Date();
       d.setDate(d.getDate() - 1);
-      var yyyy = d.getFullYear();
-      var mm   = String(d.getMonth() + 1).padStart(2, "0");
-      var dd   = String(d.getDate()).padStart(2, "0");
-      var yesterday = yyyy + "-" + mm + "-" + dd;
-      document.getElementById("date-input").value = yesterday;
-      document.getElementById("date-input").max   = yesterday;
-    })();
+      return d.toISOString().slice(0, 10);
+    }
+
+    function setMode(m) {
+      mode = m;
+      document.getElementById("tab-single").className = "mode-tab" + (m === "single" ? " active" : "");
+      document.getElementById("tab-range").className  = "mode-tab" + (m === "range"  ? " active" : "");
+      document.getElementById("panel-single").style.display = m === "single" ? "" : "none";
+      document.getElementById("panel-range").style.display  = m === "range"  ? "" : "none";
+    }
 
     function saveToken() {
       var token = document.getElementById("token-input").value.trim();
@@ -194,22 +287,34 @@
     }
 
     function run() {
-      var token   = document.getElementById("token-input").value.trim();
-      var dateVal = document.getElementById("date-input").value;
+      var token = document.getElementById("token-input").value.trim();
+      if (!token) { alert("GitHub Token을 입력해주세요."); return; }
 
-      if (!token)   { alert("GitHub Token을 입력해주세요."); return; }
-      if (!dateVal) { alert("날짜를 선택해주세요."); return; }
+      var inputs = { allow_partial_upload: "1" };
+      var label  = "";
+
+      if (mode === "single") {
+        var d = document.getElementById("date-single").value;
+        if (!d) { alert("날짜를 선택해주세요."); return; }
+        inputs.target_date = d;
+        label = d;
+      } else {
+        var from = document.getElementById("date-from").value;
+        var to   = document.getElementById("date-to").value;
+        if (!from || !to) { alert("시작/종료 날짜를 모두 선택해주세요."); return; }
+        if (from > to)    { alert("시작 날짜가 종료 날짜보다 늦습니다."); return; }
+        inputs.date_from = from;
+        inputs.date_to   = to;
+        label = from === to ? from : from + " ~ " + to;
+      }
 
       var btn    = document.getElementById("run-btn");
       var result = document.getElementById("result");
-
       btn.disabled  = true;
       btn.innerHTML = '<span class="spinner"></span>실행 중...';
       result.style.display = "none";
 
-      var url = "https://api.github.com/repos/" + REPO + "/actions/workflows/" + WF + "/dispatches";
-
-      fetch(url, {
+      fetch("https://api.github.com/repos/" + REPO + "/actions/workflows/" + WF + "/dispatches", {
         method: "POST",
         headers: {
           "Authorization": "Bearer " + token,
@@ -217,17 +322,14 @@
           "X-GitHub-Api-Version": "2022-11-28",
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          ref: "main",
-          inputs: { target_date: dateVal, allow_partial_upload: "1" }
-        })
+        body: JSON.stringify({ ref: "main", inputs: inputs })
       })
       .then(function(res) {
         btn.disabled  = false;
         btn.innerHTML = "실행";
         if (res.status === 204) {
           result.className   = "result success";
-          result.textContent = "✅ " + dateVal + " 재실행이 시작됐습니다.\n약 3~5분 후 완료됩니다.";
+          result.textContent = "✅ " + label + " 재실행이 시작됐습니다.\n약 3~5분 후 완료됩니다.";
         } else {
           return res.text().then(function(text) {
             result.className   = "result error";
