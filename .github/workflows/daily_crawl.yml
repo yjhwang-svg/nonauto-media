@@ -91,7 +91,7 @@ jobs:
           TARGET=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d' 2>/dev/null || TZ=Asia/Seoul date -v-1d '+%Y-%m-%d')
           RERUN_PART=""
           if [ -n "$GAS_RERUN_URL" ]; then
-            RERUN_PART="\n재실행 → <${GAS_RERUN_URL}|날짜 지정 재실행>"
+            RERUN_PART="\n<${GAS_RERUN_URL}|재실행>"
           fi
           curl -s -X POST "$SLACK_WEBHOOK_URL" \
             -H 'Content-Type: application/json' \
