@@ -56,10 +56,6 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
         run: python main.py
 
-      - name: 실행 결과 요약 출력
-        if: always()
-        run: echo "작업 완료"
-
       - name: 디버그 스크린샷 업로드
         if: always()
         uses: actions/upload-artifact@v4
@@ -67,3 +63,22 @@ jobs:
           name: debug-screenshots
           path: /tmp/*.png
           if-no-files-found: ignore
+
+      - name: Slack 알림 전송
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ "$JOB_STATUS" = "success" ]; then
+            ICON=":white_check_mark:"
+            STATUS_TEXT="업로드 성공"
+          else
+            ICON=":x:"
+            STATUS_TEXT="업로드 실패 — 로그를 확인하세요"
+          fi
+          TARGET=$(TZ=Asia/Seoul date -d 'yesterday' '+%Y-%m-%d' 2>/dev/null || TZ=Asia/Seoul date -v-1d '+%Y-%m-%d')
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "{\"text\": \"${ICON} *[수기매체 자동화]* ${STATUS_TEXT}\n대상 날짜: \`${TARGET}\`\n<${RUN_URL}|Actions 로그 보기>\"}"
