@@ -72,11 +72,10 @@ def fetch_day_totals(advertiser_hash: str, target_date: str, label: str) -> dict
             password=password,
             advertiser_hash=advertiser_hash,
             params={
-                "dayFrom":  target_date,
-                "dayTo":    target_date,
-                "groupBy":  "day",
-                "metrics":  "impsCount-clicksCount-campaignCost",
-                "countConvention": "ATTRIBUTED",
+                "dayFrom": target_date,
+                "dayTo":   target_date,
+                "groupBy": "day",
+                "metrics": "impsCount-clicksCount-campaignCost",
             },
         )
         logger.info(f"[RTB {label}] API 응답 행 수: {len(rows)}")

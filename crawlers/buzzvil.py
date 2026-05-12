@@ -157,12 +157,19 @@ def get_yesterday_data(driver, adgroup_id: str, target_date: str | None = None) 
     rows = driver.find_elements(By.CSS_SELECTOR, "table tbody tr")
     logger.info(f"[Buzzvil] 테이블 행 수: {len(rows)}")
 
+    # 처음 5행의 날짜 값을 로그로 출력 (날짜 포맷 확인용)
+    date_idx = col.get("date", 0)
+    for i, row in enumerate(rows[:5]):
+        cells = row.find_elements(By.CSS_SELECTOR, "td")
+        if cells and date_idx < len(cells):
+            raw = cells[date_idx].text.strip()
+            logger.info(f"[Buzzvil] 날짜 샘플[{i}]: '{raw}' → '{_parse_date(raw)}'")
+
     for row in rows:
         cells = row.find_elements(By.CSS_SELECTOR, "td")
         if not cells:
             continue
 
-        date_idx = col.get("date", 0)
         if date_idx >= len(cells):
             continue
 
