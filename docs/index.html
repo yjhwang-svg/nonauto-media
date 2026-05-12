@@ -50,8 +50,7 @@
       margin-bottom: 8px;
     }
 
-    input[type="date"],
-    input[type="password"] {
+    input[type="date"] {
       width: 100%;
       padding: 12px 14px;
       border: 1.5px solid #e0e0e0;
@@ -64,43 +63,7 @@
       background: #fff;
     }
 
-    input:focus { border-color: #4f7cff; }
-
-    .token-row {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .token-row input { margin-bottom: 0; flex: 1; }
-
-    .token-save-btn {
-      padding: 12px 14px;
-      background: #f0f0f0;
-      border: 1.5px solid #e0e0e0;
-      border-radius: 10px;
-      font-size: 13px;
-      font-weight: 600;
-      color: #444;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.2s;
-    }
-
-    .token-save-btn:hover { background: #e0e0e0; }
-
-    .token-hint {
-      font-size: 12px;
-      color: #999;
-      margin-top: -10px;
-      margin-bottom: 20px;
-    }
-
-    .divider {
-      border: none;
-      border-top: 1px solid #f0f0f0;
-      margin: 20px 0;
-    }
+    input[type="date"]:focus { border-color: #4f7cff; }
 
     /* 모드 탭 */
     .mode-tabs {
@@ -138,9 +101,7 @@
       align-items: flex-start;
     }
 
-    .date-range-row .date-group {
-      flex: 1;
-    }
+    .date-range-row .date-group { flex: 1; }
 
     .date-range-row label {
       font-size: 12px;
@@ -206,15 +167,6 @@
     <h1>수기매체 자동화 재실행</h1>
     <p class="desc">재처리할 날짜를 선택하고 실행하면<br>해당 날짜 데이터를 다시 수집·업로드합니다.</p>
 
-    <label>GitHub Token</label>
-    <div class="token-row">
-      <input type="password" id="token-input" placeholder="ghp_xxxx..." />
-      <button class="token-save-btn" onclick="saveToken()">저장</button>
-    </div>
-    <p class="token-hint">* 이 기기에 저장됩니다. 다음 방문 시 자동 입력됩니다.</p>
-
-    <hr class="divider" />
-
     <!-- 모드 탭 -->
     <div class="mode-tabs">
       <button class="mode-tab active" id="tab-single" onclick="setMode('single')">단일 날짜</button>
@@ -248,14 +200,12 @@
   </div>
 
   <script>
-    var REPO = "yjhwang-svg/nonauto-media";
-    var WF   = "daily_crawl.yml";
-    var mode = "single";
+    var REPO  = "yjhwang-svg/nonauto-media";
+    var WF    = "daily_crawl.yml";
+    var TOKEN = "__RERUN_TOKEN__";  // GitHub Actions 배포 시 실제 토큰으로 치환됨
+    var mode  = "single";
 
     (function init() {
-      var saved = localStorage.getItem("gh_token");
-      if (saved) document.getElementById("token-input").value = saved;
-
       var yesterday = getYesterday();
       document.getElementById("date-single").value = yesterday;
       document.getElementById("date-single").max   = yesterday;
@@ -279,17 +229,7 @@
       document.getElementById("panel-range").style.display  = m === "range"  ? "" : "none";
     }
 
-    function saveToken() {
-      var token = document.getElementById("token-input").value.trim();
-      if (!token) { alert("토큰을 입력해주세요."); return; }
-      localStorage.setItem("gh_token", token);
-      alert("저장됐습니다.");
-    }
-
     function run() {
-      var token = document.getElementById("token-input").value.trim();
-      if (!token) { alert("GitHub Token을 입력해주세요."); return; }
-
       var inputs = { allow_partial_upload: "1" };
       var label  = "";
 
@@ -317,7 +257,7 @@
       fetch("https://api.github.com/repos/" + REPO + "/actions/workflows/" + WF + "/dispatches", {
         method: "POST",
         headers: {
-          "Authorization": "Bearer " + token,
+          "Authorization": "Bearer " + TOKEN,
           "Accept": "application/vnd.github+json",
           "X-GitHub-Api-Version": "2022-11-28",
           "Content-Type": "application/json"

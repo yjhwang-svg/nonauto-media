@@ -1,0 +1,43 @@
+name: Deploy Rerun Page
+
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: GitHub Token 주입
+        env:
+          RERUN_TOKEN: ${{ secrets.RERUN_GITHUB_TOKEN }}
+        run: sed -i "s|__RERUN_TOKEN__|$RERUN_TOKEN|g" docs/index.html
+
+      - name: GitHub Pages 설정
+        uses: actions/configure-pages@v5
+
+      - name: 페이지 아티팩트 업로드
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/
+
+      - name: 배포
+        uses: actions/deploy-pages@v4
+        id: deployment
