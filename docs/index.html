@@ -292,9 +292,10 @@
   </div>
 
   <script>
-    var REPO = "yjhwang-svg/nonauto-media";
-    var WF   = "daily_crawl.yml";
-    var mode = "single";
+    var REPO  = "yjhwang-svg/nonauto-media";
+    var WF    = "daily_crawl.yml";
+    var BTOKEN = "__RERUN_TOKEN__";  // GitHub Actions 배포 시 실제 토큰으로 치환
+    var mode  = "single";
 
     (function init() {
       var yesterday = getYesterday();
@@ -305,12 +306,18 @@
       document.getElementById("date-from").value    = yesterday;
       document.getElementById("date-to").value      = yesterday;
 
-      // 저장된 토큰 확인
+      // 주입된 토큰이 없으면 localStorage fallback
       var saved = localStorage.getItem("gh_token");
+      if (BTOKEN === "__RERUN_TOKEN__") {
+        // 토큰 미주입 → localStorage에서 가져오거나 설정 필요 안내
+        if (saved) {
+          // localStorage에 있으면 조용히 사용
+        } else {
+          document.getElementById("setup-notice").style.display = "block";
+        }
+      }
       if (saved) {
         document.getElementById("token-input").value = saved;
-      } else {
-        document.getElementById("setup-notice").style.display = "block";
       }
     })();
 
@@ -343,7 +350,8 @@
     }
 
     function run() {
-      var token = localStorage.getItem("gh_token");
+      // 주입된 토큰 우선, 없으면 localStorage fallback
+      var token = BTOKEN !== "__RERUN_TOKEN__" ? BTOKEN : localStorage.getItem("gh_token");
       if (!token) {
         alert("⚙️ 버튼을 눌러 GitHub Token을 먼저 설정해주세요.");
         return;
