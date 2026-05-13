@@ -25,20 +25,16 @@ jobs:
       - name: 코드 체크아웃
         uses: actions/checkout@v4
 
-      - name: GitHub Token 주입
+      - name: config.js 생성 (토큰 주입)
         env:
           RERUN_TOKEN: ${{ secrets.RERUN_GITHUB_TOKEN }}
         run: |
           if [ -z "$RERUN_TOKEN" ]; then
-            echo "::error::RERUN_GITHUB_TOKEN Secret이 비어있습니다. GitHub Secrets를 확인하세요."
+            echo "::error::RERUN_GITHUB_TOKEN Secret이 비어있습니다."
             exit 1
           fi
-          sed -i "s|__RERUN_TOKEN__|${RERUN_TOKEN}|g" docs/index.html
-          if grep -q "__RERUN_TOKEN__" docs/index.html; then
-            echo "::error::토큰 치환 실패 - 플레이스홀더가 아직 남아있습니다."
-            exit 1
-          fi
-          echo "토큰 주입 성공"
+          echo "window.RERUN_TOKEN='${RERUN_TOKEN}';" > docs/config.js
+          echo "config.js 생성 완료"
 
       - name: GitHub Pages 설정
         uses: actions/configure-pages@v5

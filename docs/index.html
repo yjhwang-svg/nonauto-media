@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>수기매체 자동화 재실행</title>
+  <script src="config.js" onerror="window.RERUN_TOKEN=null;"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -292,10 +293,9 @@
   </div>
 
   <script>
-    var REPO  = "yjhwang-svg/nonauto-media";
-    var WF    = "daily_crawl.yml";
-    var BTOKEN = "__RERUN_TOKEN__";  // GitHub Actions 배포 시 실제 토큰으로 치환
-    var mode  = "single";
+    var REPO = "yjhwang-svg/nonauto-media";
+    var WF   = "daily_crawl.yml";
+    var mode = "single";
 
     (function init() {
       var yesterday = getYesterday();
@@ -306,15 +306,11 @@
       document.getElementById("date-from").value    = yesterday;
       document.getElementById("date-to").value      = yesterday;
 
-      // 주입된 토큰이 없으면 localStorage fallback
-      var saved = localStorage.getItem("gh_token");
-      if (BTOKEN === "__RERUN_TOKEN__") {
-        // 토큰 미주입 → localStorage에서 가져오거나 설정 필요 안내
-        if (saved) {
-          // localStorage에 있으면 조용히 사용
-        } else {
-          document.getElementById("setup-notice").style.display = "block";
-        }
+      // config.js로 주입된 토큰 확인, 없으면 localStorage fallback
+      var injected = window.RERUN_TOKEN;
+      var saved    = localStorage.getItem("gh_token");
+      if (!injected && !saved) {
+        document.getElementById("setup-notice").style.display = "block";
       }
       if (saved) {
         document.getElementById("token-input").value = saved;
@@ -350,8 +346,8 @@
     }
 
     function run() {
-      // 주입된 토큰 우선, 없으면 localStorage fallback
-      var token = BTOKEN !== "__RERUN_TOKEN__" ? BTOKEN : localStorage.getItem("gh_token");
+      // config.js 주입 토큰 우선, 없으면 localStorage fallback
+      var token = window.RERUN_TOKEN || localStorage.getItem("gh_token");
       if (!token) {
         alert("⚙️ 버튼을 눌러 GitHub Token을 먼저 설정해주세요.");
         return;
