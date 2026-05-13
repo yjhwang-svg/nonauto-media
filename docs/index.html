@@ -254,6 +254,15 @@
       btn.innerHTML = '<span class="spinner"></span>실행 중...';
       result.style.display = "none";
 
+      if (TOKEN === "__RERUN_TOKEN__") {
+        btn.disabled  = false;
+        btn.innerHTML = "실행";
+        result.className   = "result error";
+        result.textContent = "❌ 설정 오류: 토큰이 주입되지 않았습니다.\nGitHub Actions Pages 배포를 확인하세요.";
+        result.style.display = "block";
+        return;
+      }
+
       fetch("https://api.github.com/repos/" + REPO + "/actions/workflows/" + WF + "/dispatches", {
         method: "POST",
         headers: {
@@ -270,13 +279,14 @@
         if (res.status === 204) {
           result.className   = "result success";
           result.textContent = "✅ " + label + " 재실행이 시작됐습니다.\n약 3~5분 후 완료됩니다.";
+          result.style.display = "block";
         } else {
-          return res.text().then(function(text) {
+          res.text().then(function(text) {
             result.className   = "result error";
             result.textContent = "❌ 실행 실패 (HTTP " + res.status + ")\n" + text;
+            result.style.display = "block";
           });
         }
-        result.style.display = "block";
       })
       .catch(function(err) {
         btn.disabled  = false;
